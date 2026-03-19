@@ -29,26 +29,23 @@ class AIHandler:
             print(f"Transcription error: {e}")
             return None
 
-    def generate_response(self, transcript_text):
-        """Generate response given a transcript segment."""
-        if not transcript_text or len(transcript_text.strip()) < 10:
-            # Ignore very short noises/words that probably aren't questions
+    def add_to_context(self, text):
+        if text and len(text.strip()) >= 5:
+            self.context.append({"role": "user", "content": text})
+            if len(self.context) > 10:
+                self.context = self.context[-10:]
+
+    def generate_response_from_context(self):
+        if not self.context:
             return None
             
-        self.context.append({"role": "user", "content": transcript_text})
-        
-        # Keep context small to reduce token usage and latency (last 4 messages + system)
-        if len(self.context) > 4:
-            self.context = self.context[-4:]
-            
         messages = [{"role": "system", "content": self.system_prompt}] + self.context
-        
         try:
-            model_name = "openai/gpt-3.5-turbo" if self.client.base_url.host == "openrouter.ai" else "gpt-3.5-turbo"
+            model_name = "openai/gpt-3.5-turbo" if getattr(self.client, "base_url", None) and self.client.base_url.host == "openrouter.ai" else "gpt-3.5-turbo"
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                max_tokens=150,
+                max_tokens=200,
                 temperature=0.7
             )
             reply = response.choices[0].message.content

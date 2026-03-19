@@ -258,16 +258,21 @@ class FloatingWidgetApp(ctk.CTk):
 
     def send_text(self):
         user_text = self.input_entry.get().strip()
+        self.input_entry.delete(0, 'end')
+        
+        if not self.ai_handler:
+            self.ai_handler = AIHandler(api_key=API_KEY)
+            
         if user_text:
-            self.input_entry.delete(0, 'end')
-            if not self.ai_handler:
-                self.ai_handler = AIHandler(api_key=API_KEY)
-            self.append_text(self.chat_box, f"\n🎙️ You: {user_text}\n")
+            self.append_text(self.chat_box, f"\n🎙️ You/Notes: {user_text}\n")
+            self.ai_handler.add_to_context(f"My note: {user_text}. Please provide the answer or key points requested.")
+            
+        if self.ai_handler.context:
             self.append_text(self.chat_box, "🤖 AI: Thinking...\n")
-            threading.Thread(target=self._process_text, args=(user_text,), daemon=True).start()
+            threading.Thread(target=self._process_text, daemon=True).start()
 
-    def _process_text(self, text):
-        answer = self.ai_handler.generate_response(text)
+    def _process_text(self):
+        answer = self.ai_handler.generate_response_from_context()
         self.remove_last_line(self.chat_box)
         if answer:
             self.append_text(self.chat_box, f"🤖 AI: {answer}\n")
@@ -277,14 +282,11 @@ class FloatingWidgetApp(ctk.CTk):
             audio_data = self.audio_handler.get_audio_data()
             if audio_data:
                 transcript = self.ai_handler.transcribe_audio(audio_data)
-                if transcript and len(transcript.strip()) > 5:
+                if transcript and len(transcript.strip()) > 2:
                     self.append_text(self.chat_box, f"\n🎙️ Meeting: {transcript}\n")
-                    self.append_text(self.chat_box, "🤖 AI: Thinking...\n")
-                    
-                    answer = self.ai_handler.generate_response(transcript)
-                    self.remove_last_line(self.chat_box)
-                    if answer:
-                        self.append_text(self.chat_box, f"🤖 AI: {answer}\n")
+                    if not self.ai_handler:
+                        self.ai_handler = AIHandler(api_key=API_KEY)
+                    self.ai_handler.add_to_context(f"Interviewer speaking: {transcript}")
             else:
                 time.sleep(0.1)
 

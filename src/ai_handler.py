@@ -79,7 +79,7 @@ class AIHandler:
         }
         
         req = urllib.request.Request(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
             data=json.dumps(payload).encode('utf-8'),
             headers={
                 "Content-Type": "application/json",

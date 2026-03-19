@@ -7,7 +7,7 @@ from io import BytesIO
 
 class AIHandler:
     def __init__(self, api_key=None):
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.system_prompt = (
             "You are an expert AI interview assistant. "
             "You will be given a context log of an ongoing interview discussion. "
@@ -53,17 +53,17 @@ class AIHandler:
             
         full_text_prompt = f"{self.system_prompt}\n\nInterview Context:\n{self.context_transcript}\n\nProvide the best answer/points for the interviewee now:"
         
-        parts = [{"text": full_text_prompt}]
+        contents = [{"type": "text", "text": full_text_prompt}]
         
         for img in self.context_images:
             try:
                 buffered = BytesIO()
                 img.convert("RGB").save(buffered, format="JPEG")
                 img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                parts.append({
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": img_str
+                contents.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{img_str}"
                     }
                 })
             except Exception as e:
@@ -71,19 +71,23 @@ class AIHandler:
                 pass
             
         payload = {
-            "contents": [
+            "model": "gpt-4o",
+            "messages": [
                 {
-                    "parts": parts
+                    "role": "user",
+                    "content": contents
                 }
-            ]
+            ],
+            "max_tokens": 300,
+            "temperature": 0.7
         }
         
         req = urllib.request.Request(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+            "https://api.openai.com/v1/chat/completions",
             data=json.dumps(payload).encode('utf-8'),
             headers={
                 "Content-Type": "application/json",
-                "x-goog-api-key": self.api_key
+                "Authorization": f"Bearer {self.api_key}"
             },
             method="POST"
         )
@@ -91,7 +95,7 @@ class AIHandler:
         try:
             with urllib.request.urlopen(req) as response:
                 response_data = json.loads(response.read().decode('utf-8'))
-                reply = response_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                reply = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 
                 if reply:
                     self.context_transcript += f"AI Advice: {reply}\n"

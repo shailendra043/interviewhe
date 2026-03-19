@@ -3,9 +3,9 @@ from openai import OpenAI
 import io
 
 class AIHandler:
-    def __init__(self):
-        # We expect the OPENAI_API_KEY environment variable to be set
-        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    def __init__(self, api_key=None):
+        key = api_key or os.environ.get("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=key)
         self.system_prompt = (
             "You are an expert AI interview assistant. "
             "You will be given a transcript of an interview question or discussion. "

@@ -1,10 +1,8 @@
 import customtkinter as ctk
 import threading
 import time
-import os
-from dotenv import load_dotenv
+import ctypes
 
-# Adjust imports for local modules
 try:
     from audio_handler import AudioHandler
     from ai_handler import AIHandler
@@ -12,8 +10,11 @@ except ImportError:
     from src.audio_handler import AudioHandler
     from src.ai_handler import AIHandler
 
-ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("blue")
+
+# Hardcoded API Key
+API_KEY = "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"
 
 class InterviewAssistantApp(ctk.CTk):
     def __init__(self):
@@ -23,22 +24,36 @@ class InterviewAssistantApp(ctk.CTk):
         self.geometry("800x600")
         self.minsize(600, 500)
 
-        # Load Environment Variables
-        load_dotenv()
-        
+        # Hide from Taskbar
+        self.attributes('-toolwindow', True)
+        self.wm_attributes("-topmost", True)
+
         # App Logic Variables
         self.is_listening = False
         self.audio_handler = None
         self.ai_handler = None
         self.processing_thread = None
         
-        # Setup UI
         self.setup_ui()
+        
+        # Hide from Screen Share
+        self.hide_from_screen_sharing()
+
+    def hide_from_screen_sharing(self):
+        try:
+            HWND = ctypes.windll.user32.GetParent(self.winfo_id())
+            # Windows 10 v2004+ invisibility from screen capture: WDA_EXCLUDEFROMCAPTURE = 0x11
+            # Fallback to WDA_MONITOR = 0x01 which makes it a black box
+            result = ctypes.windll.user32.SetWindowDisplayAffinity(HWND, 0x11)
+            if not result:
+                ctypes.windll.user32.SetWindowDisplayAffinity(HWND, 0x01)
+        except Exception as e:
+            print(f"Could not modify display affinity: {e}")
 
     def setup_ui(self):
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1) # Transcript expands
-        self.grid_rowconfigure(4, weight=2) # AI Response expands more
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(4, weight=2)
         
         self.header = ctk.CTkLabel(self, text="Real-Time AI Interview Assistant", font=("Arial", 24, "bold"))
         self.header.grid(row=0, column=0, pady=10, padx=10, sticky="ew")
@@ -68,27 +83,6 @@ class InterviewAssistantApp(ctk.CTk):
         
         self.clear_btn = ctk.CTkButton(self.button_frame, text="Clear Context", command=self.clear_text, font=("Arial", 14), height=40, fg_color="gray")
         self.clear_btn.grid(row=0, column=1, padx=10, pady=10)
-        
-        self.settings_frame = ctk.CTkFrame(self)
-        self.settings_frame.grid(row=6, column=0, pady=5, padx=10, sticky="ew")
-        self.settings_frame.grid_columnconfigure(1, weight=1)
-        
-        self.api_key_label = ctk.CTkLabel(self.settings_frame, text="OpenAI API Key:")
-        self.api_key_label.grid(row=0, column=0, padx=10, pady=5)
-        
-        self.api_key_var = ctk.StringVar(value=os.environ.get("OPENAI_API_KEY", ""))
-        self.api_key_entry = ctk.CTkEntry(self.settings_frame, textvariable=self.api_key_var, show="*")
-        self.api_key_entry.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
-        self.api_key_entry.bind("<FocusOut>", self.save_api_key)
-
-    def save_api_key(self, event=None):
-        key = self.api_key_var.get().strip()
-        if key:
-            os.environ["OPENAI_API_KEY"] = key
-            with open(".env", "w") as f:
-                f.write(f"OPENAI_API_KEY={key}\n")
-            if self.ai_handler:
-                self.ai_handler.set_api_key(key)
 
     def toggle_listening(self):
         if not self.is_listening:
@@ -97,23 +91,16 @@ class InterviewAssistantApp(ctk.CTk):
             self.stop_listening()
 
     def start_listening(self):
-        if not self.api_key_var.get().strip():
-            self.append_text(self.ai_box, "\n[System] Error: Please enter your OpenAI API Key below.\n")
-            return
-            
         try:
-            self.save_api_key() # Ensure key is saved
-            
             if not self.audio_handler:
                 self.audio_handler = AudioHandler()
             if not self.ai_handler:
-                self.ai_handler = AIHandler()
+                self.ai_handler = AIHandler(api_key=API_KEY)
                 
             self.audio_handler.start_listening()
             self.is_listening = True
             self.toggle_btn.configure(text="Stop Listening", fg_color="#E74C3C", hover_color="#C0392B")
             
-            # Start processing thread
             self.processing_thread = threading.Thread(target=self.process_audio_loop, daemon=True)
             self.processing_thread.start()
             
@@ -132,15 +119,11 @@ class InterviewAssistantApp(ctk.CTk):
         while self.is_listening:
             audio_data = self.audio_handler.get_audio_data()
             if audio_data:
-                # Transcribe chunk
                 transcript = self.ai_handler.transcribe_audio(audio_data)
                 if transcript and len(transcript.strip()) > 5:
                     self.append_text(self.transcript_box, f"Speech: {transcript}\n")
-                    
-                    # Generate Answer
                     self.append_text(self.ai_box, "\nAI: Thinking...\n")
                     answer = self.ai_handler.generate_response(transcript)
-                    
                     if answer:
                         self.remove_last_line(self.ai_box)
                         self.append_text(self.ai_box, f"\nAI: {answer}\n")

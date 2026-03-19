@@ -1,0 +1,6 @@
+openai==1.14.3
+SpeechRecognition==3.10.1
+PyAudio==0.2.14
+customtkinter==5.2.2
+python-dotenv==1.0.1
+pyinstaller==6.5.0

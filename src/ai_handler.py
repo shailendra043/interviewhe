@@ -53,4 +53,6 @@ class AIHandler:
             return reply
         except Exception as e:
             print(f"LLM error: {e}")
-            return "Error generating response."
+            if "401" in str(e):
+                return "Error: Your OpenRouter/OpenAI API key is invalid or unrecognized."
+            return f"Error generating response: {e}"

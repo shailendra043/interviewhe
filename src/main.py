@@ -116,21 +116,14 @@ class FloatingWidgetApp(ctk.CTk):
         # ----------------------------------------------------------------------------------------
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.main_frame.grid(row=1, column=0, sticky="nsew", padx=25, pady=15)
-        self.main_frame.grid_rowconfigure((0, 1), weight=1)
+        self.main_frame.grid_rowconfigure(0, weight=1)
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_columnconfigure(1, weight=1)
         
-        self.transcript_box = ctk.CTkTextbox(self.main_frame, fg_color="#0F1621", text_color="#8CA3B8", 
-                                             font=("Segoe UI", 14), corner_radius=10, border_color="#1A2536", border_width=1)
-        self.transcript_box.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
-        self.transcript_box.insert("0.0", "Wait for mic or type text below...\n")
-        self.transcript_box.configure(state="disabled")
-        
-        self.ai_box = ctk.CTkTextbox(self.main_frame, fg_color="#111D28", text_color="#00E5FF", 
-                                     font=("Segoe UI", 16, "bold"), corner_radius=10, border_color="#1A2536", border_width=1)
-        self.ai_box.grid(row=1, column=0, columnspan=2, sticky="nsew")
-        self.ai_box.insert("0.0", "Ready.\n")
-        self.ai_box.configure(state="disabled")
+        self.chat_box = ctk.CTkTextbox(self.main_frame, fg_color="#0F1621", text_color="#FFFFFF", 
+                                             font=("Segoe UI", 15), corner_radius=10, border_color="#1A2536", border_width=1)
+        self.chat_box.grid(row=0, column=0, sticky="nsew")
+        self.chat_box.insert("0.0", "Wait for mic or type text below...\n\n")
+        self.chat_box.configure(state="disabled")
         
         # ----------------------------------------------------------------------------------------
         # Bottom Input Area
@@ -180,7 +173,7 @@ class FloatingWidgetApp(ctk.CTk):
         self.bind("<Alt-Right>", lambda e: self.move_window(50, 0))
 
     def snap_action(self):
-        self.append_text(self.transcript_box, "\n[System] Snap action triggered!\n")
+        self.append_text(self.chat_box, "\n[System] Snap action triggered!\n")
 
     def move_window(self, dx, dy):
         x = self.winfo_x() + dx
@@ -193,7 +186,6 @@ class FloatingWidgetApp(ctk.CTk):
         self.destroy()
 
     def toggle_visibility(self):
-        # For overrideredirect windows, state normal/iconic isn't standard, withdraw and deiconify work best
         if self.winfo_viewable():
             self.withdraw()
         else:
@@ -216,19 +208,19 @@ class FloatingWidgetApp(ctk.CTk):
             self.is_listening = True
             
             self.mic_btn.configure(fg_color="#00E5FF", text_color="#000000", hover_color="#00BCCC")
-            self.append_text(self.transcript_box, "\n[System] Listening to audio...\n")
+            self.append_text(self.chat_box, "\n[System] Listening to audio...\n")
             
             self.processing_thread = threading.Thread(target=self.process_audio_loop, daemon=True)
             self.processing_thread.start()
         except Exception as e:
-            self.append_text(self.transcript_box, f"\n[Error] {str(e)}\n")
+            self.append_text(self.chat_box, f"\n[Error] {str(e)}\n")
 
     def stop_listening(self):
         if self.audio_handler:
             self.audio_handler.stop_listening()
         self.is_listening = False
         self.mic_btn.configure(fg_color="#212E41", hover_color="#304058", text_color="#DCE4EE")
-        self.append_text(self.transcript_box, "\n[System] Stopped listening.\n")
+        self.append_text(self.chat_box, "\n[System] Stopped listening.\n")
 
     def send_text(self):
         user_text = self.input_entry.get().strip()
@@ -236,15 +228,15 @@ class FloatingWidgetApp(ctk.CTk):
             self.input_entry.delete(0, 'end')
             if not self.ai_handler:
                 self.ai_handler = AIHandler(api_key=API_KEY)
-            self.append_text(self.transcript_box, f"User Typed: {user_text}\n")
-            self.append_text(self.ai_box, "\nAI Analyzing...\n")
+            self.append_text(self.chat_box, f"\n🎙️ You: {user_text}\n")
+            self.append_text(self.chat_box, "🤖 AI: Thinking...\n")
             threading.Thread(target=self._process_text, args=(user_text,), daemon=True).start()
 
     def _process_text(self, text):
         answer = self.ai_handler.generate_response(text)
-        self.remove_last_line(self.ai_box)
+        self.remove_last_line(self.chat_box)
         if answer:
-            self.append_text(self.ai_box, f"\n[AI] {answer}\n")
+            self.append_text(self.chat_box, f"🤖 AI: {answer}\n")
 
     def process_audio_loop(self):
         while self.is_listening:
@@ -252,13 +244,13 @@ class FloatingWidgetApp(ctk.CTk):
             if audio_data:
                 transcript = self.ai_handler.transcribe_audio(audio_data)
                 if transcript and len(transcript.strip()) > 5:
-                    self.append_text(self.transcript_box, f"Audio: {transcript}\n")
-                    self.append_text(self.ai_box, "\nAI Analyzing...\n")
+                    self.append_text(self.chat_box, f"\n🎙️ Meeting: {transcript}\n")
+                    self.append_text(self.chat_box, "🤖 AI: Thinking...\n")
                     
                     answer = self.ai_handler.generate_response(transcript)
-                    self.remove_last_line(self.ai_box)
+                    self.remove_last_line(self.chat_box)
                     if answer:
-                        self.append_text(self.ai_box, f"\n[AI] {answer}\n")
+                        self.append_text(self.chat_box, f"🤖 AI: {answer}\n")
             else:
                 time.sleep(0.1)
 
@@ -270,7 +262,7 @@ class FloatingWidgetApp(ctk.CTk):
 
     def remove_last_line(self, widget):
         widget.configure(state="normal")
-        # Delete the line "\nAI Analyzing...\n" plus the lines around it created during insert
+        # Delete the line "\nAI: Thinking...\n" plus surrounding
         widget.delete("end-2l", "end-1l")
         widget.configure(state="disabled")
 

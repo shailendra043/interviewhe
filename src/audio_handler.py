@@ -1,12 +1,15 @@
-import speech_recognition as sr
 import queue
 import threading
 import sys
 
 try:
     import pyaudiowpatch as pyaudio
+    # Monkey-patch sys.modules so speech_recognition finds PyAudio
+    sys.modules['pyaudio'] = pyaudio
 except ImportError:
     import pyaudio
+
+import speech_recognition as sr
 
 class AudioHandler:
     def __init__(self):

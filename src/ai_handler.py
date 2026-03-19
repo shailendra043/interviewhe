@@ -1,22 +1,21 @@
 import os
-from openai import OpenAI
-import io
+import google.generativeai as genai
 
 class AIHandler:
     def __init__(self, api_key=None):
-        key = api_key or os.environ.get("OPENAI_API_KEY")
-        base_url = "https://openrouter.ai/api/v1" if (key and key.startswith("sk-or-")) else None
-        self.client = OpenAI(api_key=key, base_url=base_url)
+        key = api_key or os.environ.get("GOOGLE_API_KEY")
+        genai.configure(api_key=key)
+        # Gemini 1.5 Flash is Google's incredibly fast, multimodal default model 
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        
         self.system_prompt = (
             "You are an expert AI interview assistant. "
-            "You will be given a transcript of an interview question or discussion. "
+            "You will be given a context log of an ongoing interview discussion. "
             "Provide a concise, excellent answer or talking point to help the interviewee. "
             "Keep the response professional, directly addressing the prompt, and relatively short (2-4 sentences)."
         )
-        self.context = []
-
-    def set_api_key(self, api_key):
-        self.client = OpenAI(api_key=api_key)
+        # We will hold dialogue context as a raw transcript block 
+        self.context_transcript = ""
 
     def transcribe_audio(self, audio_data):
         """Transcribe audio data using Google Web Speech (Free & Compatible)."""
@@ -31,28 +30,33 @@ class AIHandler:
 
     def add_to_context(self, text):
         if text and len(text.strip()) >= 5:
-            self.context.append({"role": "user", "content": text})
-            if len(self.context) > 10:
-                self.context = self.context[-10:]
+            self.context_transcript += f"{text}\n"
+            # Truncate context if it gets absurdly long (keep last ~3000 chars)
+            if len(self.context_transcript) > 3000:
+                self.context_transcript = "..." + self.context_transcript[-3000:]
+
+    @property
+    def context(self):
+        return self.context_transcript.strip()
+        
+    @context.setter
+    def context(self, value):
+        # For main.py clear_text backwards compat
+        if not value:
+            self.context_transcript = ""
 
     def generate_response_from_context(self):
-        if not self.context:
+        if not self.context_transcript.strip():
             return None
             
-        messages = [{"role": "system", "content": self.system_prompt}] + self.context
+        prompt = f"{self.system_prompt}\n\nInterview Context:\n{self.context_transcript}\n\nProvide the best answer/points for the interviewee now:"
+        
         try:
-            model_name = "openai/gpt-3.5-turbo" if getattr(self.client, "base_url", None) and self.client.base_url.host == "openrouter.ai" else "gpt-3.5-turbo"
-            response = self.client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                max_tokens=200,
-                temperature=0.7
-            )
-            reply = response.choices[0].message.content
-            self.context.append({"role": "assistant", "content": reply})
+            response = self.model.generate_content(prompt)
+            reply = response.text
+            # Optionally append the AI's own reply so it knows what it previously said
+            self.context_transcript += f"AI Advice: {reply}\n"
             return reply
         except Exception as e:
             print(f"LLM error: {e}")
-            if "401" in str(e):
-                return "Error: Your OpenRouter/OpenAI API key is invalid or unrecognized."
             return f"Error generating response: {e}"

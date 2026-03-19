@@ -11,7 +11,7 @@ except ImportError:
     from src.ai_handler import AIHandler
 
 # Hardcoded API Key
-API_KEY = "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"
+API_KEY = "AIzaSyBlLCx-IC0rGvBj5u4uS6v0FZliJHi09m4"
 
 class FloatingWidgetApp(ctk.CTk):
     def __init__(self):

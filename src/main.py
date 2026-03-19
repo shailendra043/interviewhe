@@ -133,10 +133,17 @@ class FloatingWidgetApp(ctk.CTk):
         self.shortcuts_label.bind("<Button-1>", self.click_window)
         self.shortcuts_label.bind("<B1-Motion>", self.drag_window)
         
-        # Profile/Close Icons (Mocked with unicode or text)
-        self.close_btn = ctk.CTkButton(self.title_bar, text="✖", font=("Arial", 16), width=35, height=35, 
+        # Window Controls (Minimize / Close)
+        self.action_frame = ctk.CTkFrame(self.title_bar, fg_color="transparent")
+        self.action_frame.grid(row=0, column=2, padx=10)
+        
+        self.min_btn = ctk.CTkButton(self.action_frame, text="—", font=("Arial", 14, "bold"), width=35, height=35, 
+                                     fg_color="transparent", hover_color="#304058", text_color="#637C94", command=self.toggle_visibility)
+        self.min_btn.grid(row=0, column=0, padx=(0, 2))
+
+        self.close_btn = ctk.CTkButton(self.action_frame, text="✖", font=("Arial", 16), width=35, height=35, 
                                        fg_color="transparent", hover_color="#E74C3C", text_color="#637C94", command=self.exit_app)
-        self.close_btn.grid(row=0, column=2, padx=10)
+        self.close_btn.grid(row=0, column=1)
         
         # ----------------------------------------------------------------------------------------
         # Main View Area

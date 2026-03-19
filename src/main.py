@@ -100,7 +100,7 @@ class FloatingWidgetApp(ctk.CTk):
         self.logo_label.bind("<B1-Motion>", self.drag_window)
         
         # Center Shortcuts
-        shortcuts_text = "Ctrl + \\ Hide      Ctrl + K Mic      Ctrl + Enter Send      Alt + Arrows Move"
+        shortcuts_text = "Ctrl + \\ Hide      Ctrl + K Mic      Ctrl + Enter Send      Alt + Arrows Move      Ctrl + Q Quit"
         self.shortcuts_label = ctk.CTkLabel(self.title_bar, text=shortcuts_text, font=("Segoe UI", 12), text_color="#30BCAE")
         self.shortcuts_label.grid(row=0, column=1, pady=10)
         self.shortcuts_label.bind("<Button-1>", self.click_window)
@@ -171,6 +171,10 @@ class FloatingWidgetApp(ctk.CTk):
         self.bind("<Alt-Down>", lambda e: self.move_window(0, 50))
         self.bind("<Alt-Left>", lambda e: self.move_window(-50, 0))
         self.bind("<Alt-Right>", lambda e: self.move_window(50, 0))
+        
+        # Quit shortcut
+        self.bind("<Control-q>", lambda e: self.exit_app())
+        self.bind("<Control-Q>", lambda e: self.exit_app())
 
     def snap_action(self):
         self.append_text(self.chat_box, "\n[System] Snap action triggered!\n")

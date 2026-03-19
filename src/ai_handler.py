@@ -16,6 +16,8 @@ class AIHandler:
         )
         # We will hold dialogue context as a raw transcript block 
         self.context_transcript = ""
+        # We will store attached PIL images for multimodal contexts
+        self.context_images = []
 
     def transcribe_audio(self, audio_data):
         """Transcribe audio data using Google Web Speech (Free & Compatible)."""
@@ -35,6 +37,9 @@ class AIHandler:
             if len(self.context_transcript) > 3000:
                 self.context_transcript = "..." + self.context_transcript[-3000:]
 
+    def add_image(self, image):
+        self.context_images.append(image)
+
     @property
     def context(self):
         return self.context_transcript.strip()
@@ -44,18 +49,25 @@ class AIHandler:
         # For main.py clear_text backwards compat
         if not value:
             self.context_transcript = ""
+            self.context_images.clear()
 
     def generate_response_from_context(self):
-        if not self.context_transcript.strip():
+        # Require either text context or images
+        if not self.context_transcript.strip() and not self.context_images:
             return None
             
         prompt = f"{self.system_prompt}\n\nInterview Context:\n{self.context_transcript}\n\nProvide the best answer/points for the interviewee now:"
         
         try:
-            response = self.model.generate_content(prompt)
+            # Pass a list containing the prompt string and any attached images
+            contents = [prompt] + self.context_images
+            response = self.model.generate_content(contents)
+            
             reply = response.text
-            # Optionally append the AI's own reply so it knows what it previously said
             self.context_transcript += f"AI Advice: {reply}\n"
+            
+            # Clear images after sending so they don't bloat future non-vision calls
+            self.context_images.clear()
             return reply
         except Exception as e:
             print(f"LLM error: {e}")

@@ -171,9 +171,9 @@ class FloatingWidgetApp(ctk.CTk):
                                      fg_color="#212E41", hover_color="#304058", corner_radius=12, command=self.toggle_mic)
         self.mic_btn.grid(row=0, column=0, padx=(0, 10))
         
-        # Camera (Snap) - Visual placeholder
+        # Camera (Snap)
         self.cam_btn = ctk.CTkButton(self.bottom_bar, text="📷", font=("Segoe UI", 18), width=50, height=45, 
-                                     fg_color="#212E41", hover_color="#304058", corner_radius=12)
+                                     fg_color="#212E41", hover_color="#304058", corner_radius=12, command=self.snap_action)
         self.cam_btn.grid(row=0, column=1, padx=(0, 10))
         
         # Input Entry
@@ -211,7 +211,18 @@ class FloatingWidgetApp(ctk.CTk):
         self.bind("<Control-Q>", lambda e: self.exit_app())
 
     def snap_action(self):
-        self.append_text(self.chat_box, "\n[System] Snap action triggered!\n")
+        try:
+            from PIL import ImageGrab
+            # Because of SetWindowDisplayAffinity, grabbing the screen completely ignores this app window
+            # This results in a clean capture of the desktop apps running "below" it.
+            screenshot = ImageGrab.grab()
+            
+            if not self.ai_handler:
+                self.ai_handler = AIHandler(api_key=API_KEY)
+            self.ai_handler.add_image(screenshot)
+            self.append_text(self.chat_box, "\n📸 Attached screen capture to context! Press Send for analysis.\n")
+        except Exception as e:
+            self.append_text(self.chat_box, f"\n[Error] Could not capture screen: {e}\n")
 
     def move_window(self, dx, dy):
         x = self.winfo_x() + dx

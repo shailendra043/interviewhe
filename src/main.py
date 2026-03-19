@@ -36,8 +36,8 @@ class FloatingWidgetApp(ctk.CTk):
         self._offsetx = 0
         self._offsety = 0
 
-        # Privacy display affinity
-        self.hide_from_screen_sharing()
+        # Privacy display affinity (call after window is mapped to OS)
+        self.after(200, self.hide_from_screen_sharing)
 
         # State variables
         self.is_listening = False
@@ -49,13 +49,24 @@ class FloatingWidgetApp(ctk.CTk):
         self.bind_shortcuts()
 
     def hide_from_screen_sharing(self):
+        self.update_idletasks()
         try:
-            HWND = ctypes.windll.user32.GetParent(self.winfo_id())
-            result = ctypes.windll.user32.SetWindowDisplayAffinity(HWND, 0x11)
-            if not result:
-                ctypes.windll.user32.SetWindowDisplayAffinity(HWND, 0x01)
-        except Exception:
-            pass
+            try:
+                hwnd1 = int(self.wm_frame(), 16)
+            except Exception:
+                hwnd1 = ctypes.windll.user32.GetParent(self.winfo_id())
+            
+            hwnd2 = self.winfo_id()
+            
+            for hwnd in (hwnd1, hwnd2):
+                if hwnd:
+                    # 0x11 = WDA_EXCLUDEFROMCAPTURE (Invisible in screen shares)
+                    res = ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x11)
+                    if not res:
+                        # 0x01 = WDA_MONITOR (Appears black in screen shares)
+                        ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x01)
+        except Exception as e:
+            print(f"Display Affinity Error: {e}")
 
     def click_window(self, event):
         self._offsetx = event.x
@@ -157,6 +168,24 @@ class FloatingWidgetApp(ctk.CTk):
         self.bind("<Control-backslash>", lambda e: self.toggle_visibility())
         self.bind("<Control-k>", lambda e: self.toggle_mic())
         self.bind("<Control-Return>", lambda e: self.send_text())
+        
+        # Snap shortcut (Ctrl + Shift + C)
+        self.bind("<Control-Shift-C>", lambda e: self.snap_action())
+        self.bind("<Control-Shift-c>", lambda e: self.snap_action())
+        
+        # Alt + Arrows to move
+        self.bind("<Alt-Up>", lambda e: self.move_window(0, -50))
+        self.bind("<Alt-Down>", lambda e: self.move_window(0, 50))
+        self.bind("<Alt-Left>", lambda e: self.move_window(-50, 0))
+        self.bind("<Alt-Right>", lambda e: self.move_window(50, 0))
+
+    def snap_action(self):
+        self.append_text(self.transcript_box, "\n[System] Snap action triggered!\n")
+
+    def move_window(self, dx, dy):
+        x = self.winfo_x() + dx
+        y = self.winfo_y() + dy
+        self.geometry(f"+{x}+{y}")
 
     def exit_app(self):
         if self.audio_handler:

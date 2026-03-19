@@ -5,7 +5,8 @@ import io
 class AIHandler:
     def __init__(self, api_key=None):
         key = api_key or os.environ.get("OPENAI_API_KEY")
-        self.client = OpenAI(api_key=key)
+        base_url = "https://openrouter.ai/api/v1" if (key and key.startswith("sk-or-")) else None
+        self.client = OpenAI(api_key=key, base_url=base_url)
         self.system_prompt = (
             "You are an expert AI interview assistant. "
             "You will be given a transcript of an interview question or discussion. "
@@ -18,21 +19,12 @@ class AIHandler:
         self.client = OpenAI(api_key=api_key)
 
     def transcribe_audio(self, audio_data):
-        """Transcribe audio data using Whisper."""
+        """Transcribe audio data using Google Web Speech (Free & Compatible)."""
         try:
-            # audio_data is an sr.AudioData object
-            wav_data = audio_data.get_wav_data()
-            
-            # OpenAI requires a file-like object with a name attribute
-            audio_file = io.BytesIO(wav_data)
-            audio_file.name = "audio.wav"
-            
-            transcript = self.client.audio.transcriptions.create(
-                model="whisper-1", 
-                file=audio_file,
-                language="en"
-            )
-            return transcript.text
+            import speech_recognition as sr
+            recognizer = sr.Recognizer()
+            transcript = recognizer.recognize_google(audio_data)
+            return transcript
         except Exception as e:
             print(f"Transcription error: {e}")
             return None
@@ -52,8 +44,9 @@ class AIHandler:
         messages = [{"role": "system", "content": self.system_prompt}] + self.context
         
         try:
+            model_name = "openai/gpt-3.5-turbo" if self.client.base_url.host == "openrouter.ai" else "gpt-3.5-turbo"
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model_name,
                 messages=messages,
                 max_tokens=150,
                 temperature=0.7

@@ -1,14 +1,38 @@
 import speech_recognition as sr
 import queue
 import threading
+import sys
+
+try:
+    import pyaudiowpatch as pyaudio
+except ImportError:
+    import pyaudio
 
 class AudioHandler:
     def __init__(self):
         self.recognizer = sr.Recognizer()
-        self.microphone = sr.Microphone()
         self.audio_queue = queue.Queue()
         self.is_listening = False
         self.stop_listening_func = None
+        
+        device_index = None
+        
+        # Attempt to find the WASAPI Loopback device for system audio
+        try:
+            p = pyaudio.PyAudio()
+            if hasattr(p, 'get_loopback_device_info_generator'):
+                default_speakers = p.get_default_output_device_info()
+                for loopback in p.get_loopback_device_info_generator():
+                    if default_speakers["name"] in loopback["name"]:
+                        device_index = loopback["index"]
+                        break
+        except Exception as e:
+            print(f"Warning: Could not find loopback device: {e}")
+            
+        if device_index is not None:
+            self.microphone = sr.Microphone(device_index=device_index)
+        else:
+            self.microphone = sr.Microphone()
 
         # Adjust for ambient noise on initialization
         with self.microphone as source:

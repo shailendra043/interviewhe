@@ -21,7 +21,7 @@ class FloatingWidgetApp(ctk.CTk):
         width = 850
         height = 450
         
-        self.title("Whis-AI")
+        self.title("Panda AI")
         self.geometry(f"{width}x{height}")
         
         # Security and Stealth modes
@@ -94,7 +94,7 @@ class FloatingWidgetApp(ctk.CTk):
         self.title_bar.grid_columnconfigure(1, weight=1)
         
         # Logo/Title
-        self.logo_label = ctk.CTkLabel(self.title_bar, text="⚡ Whis-AI", font=("Segoe UI", 18, "bold"), text_color="#00E5FF")
+        self.logo_label = ctk.CTkLabel(self.title_bar, text="🐼 Panda AI", font=("Segoe UI", 18, "bold"), text_color="#00E5FF")
         self.logo_label.grid(row=0, column=0, padx=20, pady=10)
         self.logo_label.bind("<Button-1>", self.click_window)
         self.logo_label.bind("<B1-Motion>", self.drag_window)

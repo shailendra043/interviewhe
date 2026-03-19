@@ -11,6 +11,61 @@ except ImportError:
 
 import speech_recognition as sr
 
+class MonoStreamWrapper:
+    def __init__(self, stream, channels):
+        self.stream = stream
+        self.channels = channels
+        
+    def read(self, size, exception_on_overflow=False):
+        # PyAudio WPatch ignores exception_on_overflow in some versions so we catch carefully
+        try:
+            data = self.stream.read(size, exception_on_overflow=exception_on_overflow)
+        except Exception:
+            data = self.stream.read(size, exception_on_overflow=False)
+            
+        if self.channels > 1:
+            try:
+                import numpy as np
+                arr = np.frombuffer(data, dtype=np.int16)
+                arr = arr.reshape(-1, self.channels)
+                return arr.mean(axis=1).astype(np.int16).tobytes()
+            except ImportError:
+                import audioop
+                return audioop.tomono(data, 2, 0.5, 0.5)
+        return data
+        
+    def close(self):
+        self.stream.close()
+        
+    def stop_stream(self):
+        self.stream.stop_stream()
+
+class LoopbackMicrophone(sr.Microphone):
+    def __init__(self, device_index, sample_rate, channels):
+        super().__init__(device_index=device_index, sample_rate=sample_rate)
+        self.channels = channels
+
+    def __enter__(self):
+        assert self.stream is None, "This audio source is already inside a context manager"
+        self.audio = self.pyaudio_module.PyAudio()
+        try:
+            self.stream = self.audio.open(
+                input_device_index=self.device_index,
+                channels=self.channels,
+                format=self.format, 
+                rate=self.SAMPLE_RATE, 
+                frames_per_buffer=self.CHUNK,
+                input=True,
+                as_loopback=True
+            )
+            # Wrap the stream so SpeechRecognition only sees Mono audio, otherwise WASAPI stereo breaks Google Speech 
+            self.stream = MonoStreamWrapper(self.stream, self.channels)
+        except Exception as e:
+            self.audio.terminate()
+            self.stream = None
+            raise ValueError(f"Loopback setup failed: {e}")
+        return self
+
 class AudioHandler:
     def __init__(self):
         self.recognizer = sr.Recognizer()
@@ -19,8 +74,9 @@ class AudioHandler:
         self.stop_listening_func = None
         
         device_index = None
+        channels = 2
+        rate = 44100
         
-        # Attempt to find the WASAPI Loopback device for system audio
         try:
             p = pyaudio.PyAudio()
             if hasattr(p, 'get_loopback_device_info_generator'):
@@ -28,18 +84,22 @@ class AudioHandler:
                 for loopback in p.get_loopback_device_info_generator():
                     if default_speakers["name"] in loopback["name"]:
                         device_index = loopback["index"]
+                        channels = int(loopback["maxInputChannels"])
+                        rate = int(loopback["defaultSampleRate"])
                         break
         except Exception as e:
             print(f"Warning: Could not find loopback device: {e}")
             
         if device_index is not None:
-            self.microphone = sr.Microphone(device_index=device_index)
+            self.microphone = LoopbackMicrophone(device_index=device_index, sample_rate=rate, channels=channels)
         else:
             self.microphone = sr.Microphone()
 
-        # Adjust for ambient noise on initialization
-        with self.microphone as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        try:
+            with self.microphone as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        except Exception as e:
+            print(f"Audio init warning: {e}")
 
     def start_listening(self):
         if self.is_listening:

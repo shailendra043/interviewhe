@@ -47,6 +47,33 @@ class FloatingWidgetApp(ctk.CTk):
         
         self.setup_ui()
         self.bind_shortcuts()
+        
+        # Global hotkey for unhiding when the window has no focus
+        self.setup_global_hotkey()
+
+    def setup_global_hotkey(self):
+        threading.Thread(target=self._hotkey_listener, daemon=True).start()
+
+    def _hotkey_listener(self):
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        MOD_CONTROL = 0x0002
+        VK_BACKSLASH = 0xDC
+        HOTKEY_ID = 1
+        
+        if not user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL, VK_BACKSLASH):
+            print("Warning: Could not register global shortcut for Ctrl+\\")
+            return
+            
+        msg = wintypes.MSG()
+        while user32.GetMessageA(ctypes.byref(msg), None, 0, 0) != 0:
+            if msg.message == 0x0312:  # WM_HOTKEY
+                if msg.wParam == HOTKEY_ID:
+                    self.after(0, self.toggle_visibility)
+            user32.TranslateMessage(ctypes.byref(msg))
+            user32.DispatchMessageA(ctypes.byref(msg))
+            
+        user32.UnregisterHotKey(None, HOTKEY_ID)
 
     def hide_from_screen_sharing(self):
         self.update_idletasks()
@@ -194,6 +221,9 @@ class FloatingWidgetApp(ctk.CTk):
             self.withdraw()
         else:
             self.deiconify()
+            self.lift()
+            self.attributes('-topmost', True)
+            self.focus_force()
 
     def toggle_mic(self):
         if not self.is_listening:
